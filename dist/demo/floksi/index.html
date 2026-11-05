@@ -35,6 +35,10 @@ html{scroll-padding-top:130px}
 @media(max-width:480px){.hero-copy{padding:16px 25px}.hero h1{font-size:26px;max-width:310px}.hero .text-link{margin-left:14px}}
 
 .brand b{letter-spacing:-1px}.hero .contact-note{font-size:12px;color:var(--muted);margin:13px 0 0}.hero .contact-note a{color:var(--accent);text-decoration:underline;text-underline-offset:3px}@media(min-width:761px) and (max-width:1200px){.header{gap:20px}.header nav{gap:15px}.header .phone{display:none}}
+
+/* Quantity controls share the cart state in catalog and product details. */
+.product-control{flex-shrink:0}.product-control .qty{border-color:var(--accent);color:var(--accent)}.product-control .qty button{width:32px;height:34px;flex-shrink:0}.product-control .qty output{min-width:28px;font-variant-numeric:tabular-nums}.product-control-full .qty{display:flex;justify-content:space-between;width:100%}.product-control-full .qty button{width:48px;height:48px}.product-control-full .qty output{font-size:17px}.product-bottom{flex-wrap:wrap;gap:8px}
+@media(max-width:480px){.product-control .qty button{width:29px}.product-control .qty output{min-width:25px}.product-control-full .qty button{width:48px}}
 </style></head>
 <body>
 <a class="skip" href="#catalog">Перейти к букетам</a>
@@ -143,26 +147,45 @@ window.SHOP_REVIEWS = null;
  const quantities=Object.fromEntries(c.flowers.map(f=>[f.id,0]));
  let pack=c.packaging[0].id, card=c.cards[0].id;
  function readCart(){try{const data=JSON.parse(localStorage.getItem(storageKey)||'[]');if(!Array.isArray(data))return;cart=data.slice(0,100).flatMap(row=>{if(!row||!Number.isInteger(row.qty)||row.qty<1||row.qty>99)return [];if(row.productId){const p=c.products.find(p=>p.id===row.productId);return p?[{...p,key:p.id,productId:p.id,qty:row.qty}]:[];}if(row.custom){const q={};for(const f of c.flowers)q[f.id]=Number.isInteger(row.custom.quantities?.[f.id])?Math.max(0,Math.min(99,row.custom.quantities[f.id])):0;const p=c.packaging.find(p=>p.id===row.custom.pack),a=c.cards.find(a=>a.id===row.custom.card);if(!p||!a||!Object.values(q).some(Boolean))return [];return [{...makeCustom(q,p.id,a.id),qty:row.qty}];}return [];});}catch{cart=[];}}
- function save(){try{localStorage.setItem(storageKey,JSON.stringify(cart.map(r=>r.productId?{productId:r.productId,qty:r.qty}:{custom:r.custom,qty:r.qty})));}catch{toast('Корзина доступна до закрытия страницы: сохранение браузера недоступно.');}updateCount();}
+ function save(){try{localStorage.setItem(storageKey,JSON.stringify(cart.map(r=>r.productId?{productId:r.productId,qty:r.qty}:{custom:r.custom,qty:r.qty})));}catch{toast('Корзина доступна до закрытия страницы: сохранение браузера недоступно.');}updateCount();syncProductControls();}
  function subtotal(){return cart.reduce((sum,p)=>sum+p.price*p.qty,0);}
  function delivery(method='delivery'){return method==='pickup'||subtotal()>=shop.delivery.freeFrom||!cart.length?0:shop.delivery.price;}
  function updateCount(){$('#cart-count').textContent=cart.reduce((s,p)=>s+p.qty,0);}
  function toast(message){$('#toast').textContent=message;$('#toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').classList.remove('visible'),3000);}
  function photo(p,attrs=''){return `<img src="${esc(image(p.image))}" alt="${esc(p.composition||p.name)}" ${attrs}>`;}
- function qtyControl(id,value,scope){return `<div class="qty"><button type="button" data-qty="${esc(id)}" data-delta="-1" data-scope="${scope}" aria-label="Уменьшить количество: ${esc(id)}" ${value<=0?'disabled':''}>−</button><output aria-label="Количество">${value}</output><button type="button" data-qty="${esc(id)}" data-delta="1" data-scope="${scope}" aria-label="Увеличить количество: ${esc(id)}" ${value>=99?'disabled':''}>+</button></div>`;}
+ function qtyControl(id,value,scope,label=id){return `<div class="qty"><button type="button" data-qty="${esc(id)}" data-delta="-1" data-scope="${scope}" aria-label="Уменьшить количество: ${esc(label)}" ${value<=0?'disabled':''}>−</button><output aria-label="Количество">${value}</output><button type="button" data-qty="${esc(id)}" data-delta="1" data-scope="${scope}" aria-label="Увеличить количество: ${esc(label)}" ${value>=99?'disabled':''}>+</button></div>`;}
+
+ function productControl(p,full=false){
+  const count=cart.find(row=>row.productId===p.id)?.qty||0;
+  return count?qtyControl(p.id,count,'product',p.name):`<button class="${full?'button full':'add-product'}" data-add="${p.id}" aria-label="В корзину: ${esc(p.name)}">В корзину <span aria-hidden="true">+</span></button>`;
+ }
+ function syncProductControls(){
+  const active=document.activeElement;
+  document.querySelectorAll('[data-product-control]').forEach(slot=>{
+   const p=c.products.find(item=>item.id===slot.dataset.productControl);
+   if(!p)return;
+   const focused=slot.contains(active),delta=active?.dataset.delta;
+   slot.innerHTML=productControl(p,slot.dataset.full==='true');
+   if(focused){
+    const target=delta?slot.querySelector(`[data-delta="${delta}"]:not(:disabled)`):null;
+    (target||slot.querySelector('button:not(:disabled)'))?.focus();
+   }
+  });
+ }
+
  function open(title,body,view){if(!$('#modal').open)lastFocus=document.activeElement;$('#modal-title').textContent=title;$('#modal-body').innerHTML=body;modalView=view;if(!$('#modal').open)$('#modal').showModal();$('#modal').scrollTop=0;$('#close-modal').focus();}
  function close(){if(pending)return;$('#modal').close();}
  $('#close-modal').onclick=close;
  $('#modal').addEventListener('cancel',e=>{if(pending)e.preventDefault();});
  $('#modal').addEventListener('close',()=>{modalView='';lastFocus?.focus();});
  $('#modal').addEventListener('click',e=>{if(e.target===$('#modal')){const r=$('#modal').getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)close();}});
- function renderProducts(){let rows=c.products.filter(p=>category===c.categories[0]||p.category===category);const sort=$('#sort').value;if(sort!=='default')rows=[...rows].sort((a,b)=>sort==='asc'?a.price-b.price:b.price-a.price);$('#products').innerHTML=rows.map(p=>`<article class="product"><button class="product-image" data-detail="${p.id}" aria-label="Подробнее: ${esc(p.name)}">${photo(p,'loading="lazy" width="500" height="575"')}${p.tag?`<span class="tag">${esc(p.tag)}</span>`:''}</button><button class="product-name" data-detail="${p.id}">${esc(p.name)}</button><p class="composition">${esc(p.composition)}</p><div class="product-bottom"><strong class="price">${money(p.price)}</strong><button class="add-product" data-add="${p.id}" aria-label="В корзину: ${esc(p.name)}">В корзину <span aria-hidden="true">+</span></button></div></article>`).join('');}
+ function renderProducts(){let rows=c.products.filter(p=>category===c.categories[0]||p.category===category);const sort=$('#sort').value;if(sort!=='default')rows=[...rows].sort((a,b)=>sort==='asc'?a.price-b.price:b.price-a.price);$('#products').innerHTML=rows.map(p=>`<article class="product"><button class="product-image" data-detail="${p.id}" aria-label="Подробнее: ${esc(p.name)}">${photo(p,'loading="lazy" width="500" height="575"')}${p.tag?`<span class="tag">${esc(p.tag)}</span>`:''}</button><button class="product-name" data-detail="${p.id}">${esc(p.name)}</button><p class="composition">${esc(p.composition)}</p><div class="product-bottom"><strong class="price">${money(p.price)}</strong><div class="product-control" data-product-control="${p.id}">${productControl(p)}</div></div></article>`).join('');}
  $('#filters').innerHTML=c.categories.map((cat,i)=>`<button type="button" data-category="${esc(cat)}" aria-pressed="${i===0}">${esc(cat)}</button>`).join('');
  $('#filters').onclick=e=>{const b=e.target.closest('[data-category]');if(!b)return;category=b.dataset.category;$('#filters').querySelectorAll('button').forEach(btn=>btn.setAttribute('aria-pressed',String(btn===b)));renderProducts();};
  $('#sort').onchange=renderProducts;
  function addProduct(id){const p=c.products.find(p=>p.id===id);const row=cart.find(r=>r.key===id);if(row){if(row.qty>=99)return toast('Максимум 99 букетов одной позиции.');row.qty++;}else cart.push({...p,key:p.id,productId:p.id,qty:1});save();toast('«'+p.name+'» - в корзине');}
- function detail(id){const p=c.products.find(p=>p.id===id);open(p.name,`${photo(p,'class="modal-image"')}<p>${esc(p.composition)}</p><p class="muted small">Точный состав и наличие уточняет флорист. Вазы и реквизит не включены.</p><div class="total"><span>Стоимость букета</span><strong>${money(p.price)}</strong></div><button class="button full" data-add="${p.id}">Добавить в корзину <span>+</span></button>`,'detail');}
- document.addEventListener('click',e=>{const add=e.target.closest('[data-add]');if(add)addProduct(add.dataset.add);const d=e.target.closest('[data-detail]');if(d)detail(d.dataset.detail);const q=e.target.closest('[data-qty]');if(q){const delta=Number(q.dataset.delta),id=q.dataset.qty;if(q.dataset.scope==='flower'){quantities[id]=Math.min(99,Math.max(0,quantities[id]+delta));updateFlowerQuantity(q.closest('.qty'),quantities[id]);renderBuilder();}else{const row=cart.find(r=>r.key===id);if(row){row.qty+=delta;if(row.qty<=0)cart=cart.filter(r=>r!==row);else row.qty=Math.min(99,row.qty);save();renderCart();const buttons=$('#modal-body').querySelectorAll('[data-qty]');[...buttons].find(b=>b.dataset.qty===id&&Number(b.dataset.delta)===delta)?.focus();}}}const remove=e.target.closest('[data-remove]');if(remove){cart=cart.filter(r=>r.key!==remove.dataset.remove);save();renderCart();}});
+ function detail(id){const p=c.products.find(p=>p.id===id);open(p.name,`${photo(p,'class="modal-image"')}<p>${esc(p.composition)}</p><p class="muted small">Точный состав и наличие уточняет флорист. Вазы и реквизит не включены.</p><div class="total"><span>Стоимость букета</span><strong>${money(p.price)}</strong></div><div class="product-control product-control-full" data-product-control="${p.id}" data-full="true">${productControl(p,true)}</div>`,'detail');}
+ document.addEventListener('click',e=>{const add=e.target.closest('[data-add]');if(add)addProduct(add.dataset.add);const d=e.target.closest('[data-detail]');if(d)detail(d.dataset.detail);const q=e.target.closest('[data-qty]');if(q){const delta=Number(q.dataset.delta),id=q.dataset.qty;if(q.dataset.scope==='flower'){quantities[id]=Math.min(99,Math.max(0,quantities[id]+delta));updateFlowerQuantity(q.closest('.qty'),quantities[id]);renderBuilder();}else{const row=cart.find(r=>r.key===id);if(row){row.qty+=delta;if(row.qty<=0)cart=cart.filter(r=>r!==row);else row.qty=Math.min(99,row.qty);save();if(modalView==='cart')renderCart();const buttons=$('#modal-body').querySelectorAll('[data-qty]');[...buttons].find(b=>b.dataset.qty===id&&Number(b.dataset.delta)===delta)?.focus();}}}const remove=e.target.closest('[data-remove]');if(remove){cart=cart.filter(r=>r.key!==remove.dataset.remove);save();renderCart();}});
  function renderFlowers(){$('#flowers').innerHTML=c.flowers.map(f=>`<article class="flower">${photo(f,'loading="lazy" width="250" height="275"')}<h4>${esc(f.name)}</h4><p>${money(f.price)} / шт.</p>${qtyControl(f.id,quantities[f.id],'flower')}</article>`).join('');}
  function updateFlowerQuantity(control,value){
   $('output',control).textContent=value;
@@ -204,7 +227,7 @@ window.SHOP_REVIEWS = null;
    }else $('#reviews').hidden=true;
  }else $('#reviews').hidden=true;
  readCart();updateCount();renderProducts();renderFlowers();renderBuilder();
- window.addEventListener('storage',e=>{if(e.key===storageKey){readCart();updateCount();if(modalView==='cart')renderCart();if(modalView==='checkout'){if(cart.length)checkout();else renderCart();}}});
+ window.addEventListener('storage',e=>{if(e.key===storageKey){readCart();updateCount();syncProductControls();if(modalView==='cart')renderCart();if(modalView==='checkout'){if(cart.length)checkout();else renderCart();}}});
 })();
 
 </script>

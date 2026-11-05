@@ -32,3 +32,7 @@ html{scroll-padding-top:130px}
 .hero .button{margin-top:0}
 @media(max-width:760px){.hero-copy{padding:18px 28px}.hero h1{font-size:29px}.hero .text-link{display:inline-block;margin:0 0 0 18px}}
 @media(max-width:480px){.hero-copy{padding:16px 25px}.hero h1{font-size:26px;max-width:310px}.hero .text-link{margin-left:14px}}
+
+/* Quantity controls share the cart state in catalog and product details. */
+.product-control{flex-shrink:0}.product-control .qty{border-color:var(--accent);color:var(--accent)}.product-control .qty button{width:32px;height:34px;flex-shrink:0}.product-control .qty output{min-width:28px;font-variant-numeric:tabular-nums}.product-control-full .qty{display:flex;justify-content:space-between;width:100%}.product-control-full .qty button{width:48px;height:48px}.product-control-full .qty output{font-size:17px}.product-bottom{flex-wrap:wrap;gap:8px}
+@media(max-width:480px){.product-control .qty button{width:29px}.product-control .qty output{min-width:25px}.product-control-full .qty button{width:48px}}
